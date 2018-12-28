@@ -1,15 +1,37 @@
 #pragma once
 
+/*
+*Copyright (c) 2018-2019 <Miguel Raggi> <mraggi@gmail.com>
+ *
+*Permission is hereby granted, free of charge, to any person
+*obtaining a copy of this software and associated documentation
+*files (the "Software"), to deal in the Software without
+*restriction, including without limitation the rights to use,
+*copy, modify, merge, publish, distribute, sublicense, and/or sell
+*copies of the Software, and to permit persons to whom the
+*Software is furnished to do so, subject to the following
+*conditions:
+ *
+*The above copyright notice and this permission notice shall be
+*included in all copies or substantial portions of the Software.
+ *
+*THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+*EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+*OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+*NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+*HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+*WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+*FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+*OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 #include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
-#include <numeric>
 #include <sstream>
 #include <type_traits>
-#include <unistd.h>
-#include <vector>
 
 // -------------------- chrono stuff --------------------
 
@@ -106,7 +128,7 @@ public:
     {}
 
     template <class Container>
-    TqdmForLvalues(Container&&) = delete; //prevent misuse!
+    TqdmForLvalues(Container&&) = delete; // prevent misuse!
 
     iterator begin()
     {
@@ -120,7 +142,8 @@ public:
 
     void update()
     {
-        if (time_since_last_clear() > min_time_per_update_ || iters_left_ == 0)
+        if (time_since_last_clear() > min_time_per_update_ ||
+            iters_done_ == 0 || iters_left_ == 0)
         {
             clear_chrono_.reset();
             clear_line();
@@ -129,7 +152,7 @@ public:
 
         ++iters_done_;
         --iters_left_;
-        postfix_.clear();
+        suffix_.clear();
     }
 
     void set_ostream(std::ostream& os) { os_ = &os; }
@@ -140,7 +163,7 @@ public:
     {
         std::stringstream ss;
         ss << t;
-        postfix_ += ss.str();
+        suffix_ += ss.str();
         return *this;
     }
 
@@ -174,7 +197,7 @@ private:
 
         os_->flags(flags);
 
-        (*os_) << postfix_ << std::flush;
+        (*os_) << suffix_ << std::flush;
     }
 
     void print_bar(double filled, std::int64_t size) const
@@ -198,7 +221,7 @@ private:
     std::ostream* os_{&std::cerr};
     double min_time_per_update_{0.15}; // found experimentally
     std::string prefix_{};
-    std::string postfix_{};
+    std::string suffix_{};
     std::int64_t iters_done_{0};
     std::int64_t iters_left_{0};
     std::int64_t bar_size_{30};
@@ -290,9 +313,21 @@ public:
 
     IntType& operator*() { return value_; }
 
-    int_iterator& operator++() { ++value_; return *this; }
-    int_iterator& operator--() { --value_; return *this; }
-    int_iterator& operator+=(difference_type d) { value_ += d; return *this; }
+    int_iterator& operator++()
+    {
+        ++value_;
+        return *this;
+    }
+    int_iterator& operator--()
+    {
+        --value_;
+        return *this;
+    }
+    int_iterator& operator+=(difference_type d)
+    {
+        value_ += d;
+        return *this;
+    }
 
     difference_type operator-(const int_iterator& other)
     {
@@ -339,4 +374,4 @@ auto trange(IntType last)
 {
     return tqdm(range(last));
 }
-}
+} // namespace tq

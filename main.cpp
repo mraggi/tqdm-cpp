@@ -1,4 +1,7 @@
+#include <numeric>
+#include <unistd.h>
 #include <vector>
+
 #include "tqdm.hpp"
 
 using tq::tqdm;
