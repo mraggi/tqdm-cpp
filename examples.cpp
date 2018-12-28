@@ -51,7 +51,7 @@ void test_constlvalue()
 
 void test_trange()
 {
-    auto T = trange(1000, 5000);
+    auto T = trange(100, 5000);
     T.set_prefix("tqdm range ");
     for (auto t : T)
     {

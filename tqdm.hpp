@@ -37,6 +37,7 @@
 
 namespace tq
 {
+using index = std::ptrdiff_t;
 using time_point_t = std::chrono::time_point<std::chrono::steady_clock>;
 
 inline double elapsed_seconds(time_point_t from, time_point_t to)
@@ -200,13 +201,13 @@ private:
         (*os_) << suffix_ << std::flush;
     }
 
-    void print_bar(double filled, std::int64_t size) const
+    void print_bar(double filled, index size) const
     {
-        std::int64_t num_filled = std::round(filled*size);
+        index num_filled = std::round(filled*size);
         (*os_) << '[';
-        for (int i = 0; i < num_filled; ++i)
+        for (index i = 0; i < num_filled; ++i)
             (*os_) << '#';
-        for (int i = num_filled; i < size; ++i)
+        for (index i = num_filled; i < size; ++i)
             (*os_) << ' ';
         (*os_) << ']';
     }
@@ -222,9 +223,9 @@ private:
     double min_time_per_update_{0.15}; // found experimentally
     std::string prefix_{};
     std::string suffix_{};
-    std::int64_t iters_done_{0};
-    std::int64_t iters_left_{0};
-    std::int64_t bar_size_{30};
+    index iters_done_{0};
+    index iters_left_{0};
+    index bar_size_{30};
 };
 
 template <class Container>
