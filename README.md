@@ -54,7 +54,7 @@ int main()
 }
 ```
 
-The integer type you pass to `trange` determines the `value_type`, so you can do `tq::trange(1000L)` and this lazy data structure will contain `long`s.
+The integer type you pass to `trange` determines the `value_type`. For example, `tq::trange(1000L)` contains `long`s.
 
 # Prefixes and suffixes
 
@@ -75,7 +75,7 @@ Displays: ![progress bar](pbarwprefixsuffix.gif "progress bar")
 
 # Notes
 
-- By default, the progress bar is written to `std::cerr` so as to not clash with any redirectioning you might do.
+- By default, the progress bar is written to `std::cerr` so as to not clash with stdin redirectioning.
     - Modify this by calling `set_ostream` member function.
 - Works with either rvalues or lvalues (with and without const). Takes ownership of rvalues (by moving).
 - You can customize bar size by calling `set_bar_size`. Default is 30.
