@@ -72,8 +72,8 @@ Displays: ![progress bar](pbarwprefixsuffix.gif "progress bar")
 
 # Notes
 
-    - By default, the progress bar is written to `std::cerr` so as to not clash with any redirectioning you might do.
-        - Modify this by calling `set_ostream` member function.
-    - Works with either rvalues or lvalues (with and without const). Takes ownership of rvalues (by moving).
-    - You can customize bar size by calling `set_bar_size`. Default is 30.
-    - By default, it only refreshes every 0.15 seconds (at most). Customize this with `set_min_update_time`
+- By default, the progress bar is written to `std::cerr` so as to not clash with any redirectioning you might do.
+    - Modify this by calling `set_ostream` member function.
+- Works with either rvalues or lvalues (with and without const). Takes ownership of rvalues (by moving).
+- You can customize bar size by calling `set_bar_size`. Default is 30.
+- By default, it only refreshes every 0.15 seconds (at most). Customize this with `set_min_update_time`
