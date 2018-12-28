@@ -4,7 +4,10 @@ Create CLI progress bars easily!
 
 # TQDM for C++17
 
+
 This is a first attempt at implementing some of the functionality found in python's [tqdm](https://github.com/tqdm/tqdm) functionality.
+
+**Note**: This project is not affiliated in any way with python's [tqdm](https://github.com/tqdm/tqdm). However, I plan on doing a pull request to [tqdm-cpp](https://github.com/tqdm/tqdm.cpp) which currently doesn't work (at least for me) after I've polished this enough.
 
 # Installation
 
@@ -77,3 +80,4 @@ Displays: ![progress bar](pbarwprefixsuffix.gif "progress bar")
 - Works with either rvalues or lvalues (with and without const). Takes ownership of rvalues (by moving).
 - You can customize bar size by calling `set_bar_size`. Default is 30.
 - By default, it only refreshes every 0.15 seconds (at most). Customize this with `set_min_update_time`
+- 
