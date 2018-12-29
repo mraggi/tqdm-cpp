@@ -35,292 +35,400 @@
 
 // -------------------- chrono stuff --------------------
 
-namespace tq {
-using index = std::ptrdiff_t;
+namespace tq
+{
+using index = std::ptrdiff_t; // maybe std::size_t, but I hate unsigned types.
 using time_point_t = std::chrono::time_point<std::chrono::steady_clock>;
 
-inline double elapsed_seconds(time_point_t from, time_point_t to) {
-  using seconds = std::chrono::duration<double>;
-  return std::chrono::duration_cast<seconds>(to - from).count();
+inline double elapsed_seconds(time_point_t from, time_point_t to)
+{
+    using seconds = std::chrono::duration<double>;
+    return std::chrono::duration_cast<seconds>(to - from).count();
 }
 
-class Chronometer {
+class Chronometer
+{
 public:
-  Chronometer() : start_(std::chrono::steady_clock::now()) {}
+    Chronometer() : start_(std::chrono::steady_clock::now()) {}
 
-  double reset() {
-    auto previous = start_;
-    start_ = std::chrono::steady_clock::now();
+    double reset()
+    {
+        auto previous = start_;
+        start_ = std::chrono::steady_clock::now();
 
-    return elapsed_seconds(previous, start_);
-  }
+        return elapsed_seconds(previous, start_);
+    }
 
-  double peek() const {
-    auto now = std::chrono::steady_clock::now();
+    double peek() const
+    {
+        auto now = std::chrono::steady_clock::now();
 
-    return elapsed_seconds(start_, now);
-  }
+        return elapsed_seconds(start_, now);
+    }
 
-  time_point_t start_;
+    time_point_t start_;
 };
 
 // -------------------- iter_wrapper --------------------
 
-template <class ForwardIter> class TqdmForLvalues;
+template <class ForwardIter>
+class tqdm_for_lvalues;
 
-template <class ForwardIter> class iter_wrapper {
+template <class ForwardIter>
+class iter_wrapper
+{
 public:
-  using iterator_category = typename ForwardIter::iterator_category;
-  using value_type = typename ForwardIter::value_type;
-  using difference_type = typename ForwardIter::difference_type;
-  using pointer = typename ForwardIter::pointer;
-  using reference = typename ForwardIter::reference;
+    using iterator_category = typename ForwardIter::iterator_category;
+    using value_type = typename ForwardIter::value_type;
+    using difference_type = typename ForwardIter::difference_type;
+    using pointer = typename ForwardIter::pointer;
+    using reference = typename ForwardIter::reference;
 
-  iter_wrapper(ForwardIter it, TqdmForLvalues<ForwardIter> *parent)
-      : current_(it), parent_(parent) {}
+    iter_wrapper(ForwardIter it, tqdm_for_lvalues<ForwardIter>* parent)
+        : current_(it), parent_(parent)
+    {}
 
-  auto operator*() { return *current_; }
+    auto operator*() { return *current_; }
 
-  void operator++() { ++current_; }
+    void operator++() { ++current_; }
 
-  bool operator!=(const iter_wrapper &other) {
-    parent_->update();
-    return current_ != other.current_;
-  }
-
-  const ForwardIter &get() const { return current_; }
-
-private:
-  friend class TqdmForLvalues<ForwardIter>;
-  ForwardIter current_;
-  TqdmForLvalues<ForwardIter> *parent_;
-};
-
-// -------------------- TqdmForLvalues --------------------
-
-template <class ForwardIter> class TqdmForLvalues {
-public:
-  using iterator = iter_wrapper<ForwardIter>;
-  TqdmForLvalues(ForwardIter begin, ForwardIter end)
-      : first_(begin, this), last_(end, this) {}
-  TqdmForLvalues(const TqdmForLvalues &) = delete;
-  TqdmForLvalues(TqdmForLvalues &&) = delete;
-  TqdmForLvalues &operator=(TqdmForLvalues &&) = delete;
-  TqdmForLvalues &operator=(const TqdmForLvalues &) = delete;
-
-  template <class Container>
-  explicit TqdmForLvalues(Container &C)
-      : first_(C.begin(), this), last_(C.end(), this) {}
-
-  template <class Container>
-  explicit TqdmForLvalues(const Container &C)
-      : first_(C.begin(), this), last_(C.end(), this) {}
-
-  template <class Container>
-  TqdmForLvalues(Container &&) = delete; // prevent misuse!
-
-  iterator begin() {
-    chronometer_.reset();
-    clear_chrono_.reset();
-    iters_left_ = std::distance(first_.current_, last_.current_);
-    return first_;
-  }
-
-  iterator end() { return last_; }
-
-  void update() {
-    if (time_since_last_clear() > min_time_per_update_ || iters_done_ == 0 ||
-        iters_left_ == 0) {
-      clear_chrono_.reset();
-      clear_line();
-      print_progress();
+    bool operator!=(const iter_wrapper& other) const
+    {
+        parent_->update();
+        return current_ != other.current_;
     }
 
-    ++iters_done_;
-    --iters_left_;
-    suffix_.clear();
-  }
-
-  void set_ostream(std::ostream &os) { os_ = &os; }
-  void set_prefix(std::string s) { prefix_ = std::move(s); }
-
-  template <class T> TqdmForLvalues &operator<<(const T &t) {
-    std::stringstream ss;
-    ss << t;
-    suffix_ += ss.str();
-    return *this;
-  }
-
-  void set_bar_size(int size) { bar_size_ = size; }
-  void set_min_update_time(double time) { min_time_per_update_ = time; }
+    const ForwardIter& get() const { return current_; }
 
 private:
-  void clear_line() {
-    (*os_) << '\r';
-    for (int i = 0; i < 80; ++i)
-      (*os_) << ' ';
-    (*os_) << '\r';
-  }
-
-  void print_progress() {
-    auto flags = os_->flags();
-    double total = iters_done_ + iters_left_ + 0.0000000000001;
-
-    double complete = double(iters_done_)/total;
-    double t = chronometer_.peek();
-    double eta = t/complete - t;
-
-    (*os_) << prefix_ << '{' << std::fixed << std::setprecision(1)
-           << std::setw(4) << 100*complete << "%} ";
-
-    print_bar(complete, bar_size_);
-
-    (*os_) << " (" << std::setw(4) << t << "s < " << eta << "s) ";
-
-    os_->flags(flags);
-
-    (*os_) << suffix_ << std::flush;
-  }
-
-  void print_bar(double filled, index size) const {
-    auto num_filled = static_cast<index>(std::round(filled*size));
-    (*os_) << '[';
-    for (index i = 0; i < num_filled; ++i)
-      (*os_) << '#';
-    for (index i = num_filled; i < size; ++i)
-      (*os_) << ' ';
-    (*os_) << ']';
-  }
-
-  double time_since_last_clear() const { return clear_chrono_.peek(); }
-
-  iterator first_;
-  iterator last_;
-
-  Chronometer chronometer_{};
-  Chronometer clear_chrono_{};
-  std::ostream *os_{&std::cerr};
-  double min_time_per_update_{0.15}; // found experimentally
-  std::string prefix_{};
-  std::string suffix_{};
-  index iters_done_{0};
-  index iters_left_{0};
-  index bar_size_{30};
+    friend class tqdm_for_lvalues<ForwardIter>;
+    ForwardIter current_;
+    tqdm_for_lvalues<ForwardIter>* parent_;
 };
 
-template <class Container>
-TqdmForLvalues(Container &)->TqdmForLvalues<typename Container::iterator>;
+// -------------------- tqdm_for_lvalues --------------------
 
-template <class Container>
-TqdmForLvalues(const Container &)
-    ->TqdmForLvalues<typename Container::const_iterator>;
-
-// -------------------- TqdmForRvalues --------------------
-
-template <class Container> class TqdmForRvalues {
+template <class ForwardIter>
+class tqdm_for_lvalues
+{
 public:
-  using iterator = typename Container::iterator;
-  using const_iterator = typename Container::const_iterator;
-  using value_type = typename Container::value_type;
+    using iterator = iter_wrapper<ForwardIter>;
+    using value_type = typename ForwardIter::value_type;
+    using size_type = index;
+    using difference_type = index;
 
-  explicit TqdmForRvalues(Container &&C)
-      : C_(std::forward<Container>(C)), Tqdm_(C_.begin(), C_.end()) {}
+    tqdm_for_lvalues(ForwardIter begin, ForwardIter end)
+        : first_(begin, this)
+        , last_(end, this)
+        , num_iters_(std::distance(begin, end))
+    {}
 
-  auto begin() { return Tqdm_.begin(); }
+    tqdm_for_lvalues(ForwardIter begin, ForwardIter end, index total)
+        : first_(begin, this), last_(end, this), num_iters_(total)
+    {}
 
-  auto end() { return Tqdm_.end(); }
+    template <class Container>
+    explicit tqdm_for_lvalues(Container& C)
+        : first_(C.begin(), this), last_(C.end(), this), num_iters_(C.size())
+    {}
 
-  void update() { return Tqdm_.update(); }
+    template <class Container>
+    explicit tqdm_for_lvalues(const Container& C)
+        : first_(C.begin(), this), last_(C.end(), this), num_iters_(C.size())
+    {}
 
-  void set_ostream(std::ostream &os) { Tqdm_.set_ostream(os); }
-  void set_prefix(std::string s) { Tqdm_.set_prefix(s); }
+    tqdm_for_lvalues(const tqdm_for_lvalues&) = delete;
+    tqdm_for_lvalues(tqdm_for_lvalues&&) = delete;
+    tqdm_for_lvalues& operator=(tqdm_for_lvalues&&) = delete;
+    tqdm_for_lvalues& operator=(const tqdm_for_lvalues&) = delete;
 
-  template <class T> auto &operator<<(const T &t) { return Tqdm_ << t; }
+    template <class Container>
+    tqdm_for_lvalues(Container&&) = delete; // prevent misuse!
 
-  void set_bar_size(int size) { Tqdm_.set_bar_size(size); }
+    iterator begin()
+    {
+        chronometer_.reset();
+        refresh_.reset();
+        iters_done_ = 0;
+        return first_;
+    }
+
+    iterator end() { return last_; }
+
+    void update()
+    {
+        if (time_since_last_clear() > min_time_per_update_ ||
+            iters_done_ == 0 || iters_left() == 0)
+        {
+            refresh_.reset();
+            //             clear_line();
+            print_progress();
+        }
+
+        ++iters_done_;
+        suffix_.clear();
+    }
+
+    tqdm_for_lvalues& set_ostream(std::ostream& os)
+    {
+        os_ = &os;
+        return *this;
+    }
+
+    tqdm_for_lvalues& set_prefix(std::string s)
+    {
+        prefix_ = std::move(s);
+        return *this;
+    }
+
+    tqdm_for_lvalues& set_bar_size(int size) { bar_size_ = size; }
+    tqdm_for_lvalues& set_min_update_time(double time)
+    {
+        min_time_per_update_ = time;
+    }
+
+    template <class T>
+    tqdm_for_lvalues& operator<<(const T& t)
+    {
+        std::stringstream ss;
+        ss << t;
+        suffix_ += ss.str();
+        return *this;
+    }
 
 private:
-  Container C_;
-  TqdmForLvalues<iterator> Tqdm_;
+    index iters_left() const { return num_iters_ - iters_done_; }
+
+    void print_progress()
+    {
+        auto flags = os_->flags();
+
+        double complete = double(iters_done_)/(num_iters_ + 0.0000000000001);
+        double t = chronometer_.peek();
+        double eta = t/complete - t;
+
+        std::stringstream bar;
+
+        bar << '\r' << prefix_ << '{' << std::fixed << std::setprecision(1)
+            << std::setw(4) << 100*complete << "%} ";
+
+        print_bar(bar, complete);
+
+        bar << " (" << std::setw(4) << t << "s < " << eta << "s) ";
+
+        std::string sbar = bar.str();
+
+        index out_size = sbar.size() + suffix_.size();
+        term_cols_ = std::max(term_cols_, out_size);
+        index num_blank = term_cols_ - out_size;
+
+        (*os_) << std::move(sbar) << suffix_ << std::string(num_blank, ' ')
+               << std::flush;
+
+        os_->flags(flags);
+    }
+
+    void print_bar(std::stringstream& ss, double filled) const
+    {
+        auto num_filled = static_cast<index>(std::round(filled*bar_size_));
+        ss << '[' << std::string(num_filled, '#')
+           << std::string(bar_size_ - num_filled, ' ') << ']';
+    }
+
+    double time_since_last_clear() const { return refresh_.peek(); }
+
+    iterator first_;
+    iterator last_;
+    index num_iters_;
+    index iters_done_{0};
+
+    Chronometer chronometer_{};
+    Chronometer refresh_{};
+    double min_time_per_update_{0.15}; // found experimentally
+
+    std::ostream* os_{&std::cerr};
+
+    index bar_size_{30};
+    index term_cols_{1};
+
+    std::string prefix_{};
+    std::string suffix_{};
 };
 
 template <class Container>
-TqdmForRvalues(Container &&)->TqdmForRvalues<Container>;
+tqdm_for_lvalues(Container&)->tqdm_for_lvalues<typename Container::iterator>;
+
+template <class Container>
+tqdm_for_lvalues(const Container&)
+  ->tqdm_for_lvalues<typename Container::const_iterator>;
+
+// -------------------- tqdm_for_rvalues --------------------
+
+template <class Container>
+class tqdm_for_rvalues
+{
+public:
+    using iterator = typename Container::iterator;
+    using const_iterator = typename Container::const_iterator;
+    using value_type = typename Container::value_type;
+
+    explicit tqdm_for_rvalues(Container&& C)
+        : C_(std::forward<Container>(C)), tqdm_(C_)
+    {}
+
+    auto begin() { return tqdm_.begin(); }
+
+    auto end() { return tqdm_.end(); }
+
+    void update() { return tqdm_.update(); }
+
+    tqdm_for_rvalues& set_ostream(std::ostream& os)
+    {
+        tqdm_.set_ostream(os);
+        return *this;
+    }
+
+    tqdm_for_rvalues& set_prefix(std::string s)
+    {
+        tqdm_.set_prefix(std::move(s));
+        return *this;
+    }
+
+    tqdm_for_rvalues& set_bar_size(int size)
+    {
+        tqdm_.set_bar_size(size);
+        return *this;
+    }
+
+    tqdm_for_rvalues& set_min_update_time(double time)
+    {
+        tqdm_.set_min_update_time(time);
+        return *this;
+    }
+
+    template <class T>
+    auto& operator<<(const T& t)
+    {
+        return tqdm_ << t;
+    }
+
+private:
+    Container C_;
+    tqdm_for_lvalues<iterator> tqdm_;
+};
+
+template <class Container>
+tqdm_for_rvalues(Container &&)->tqdm_for_rvalues<Container>;
 
 // -------------------- tqdm --------------------
 template <class ForwardIter>
-auto tqdm(const ForwardIter &first, const ForwardIter &last) {
-  return TqdmForLvalues(first, last);
+auto tqdm(const ForwardIter& first, const ForwardIter& last)
+{
+    return tqdm_for_lvalues(first, last);
 }
 
-template <class Container> auto tqdm(const Container &C) {
-  return TqdmForLvalues(C);
+template <class ForwardIter>
+auto tqdm(const ForwardIter& first, const ForwardIter& last, index total)
+{
+    return tqdm_for_lvalues(first, last, total);
 }
 
-template <class Container> auto tqdm(Container &C) { return TqdmForLvalues(C); }
+template <class Container>
+auto tqdm(const Container& C)
+{
+    return tqdm_for_lvalues(C);
+}
 
-template <class Container> auto tqdm(Container &&C) {
-  return TqdmForRvalues(std::forward<Container>(C));
+template <class Container>
+auto tqdm(Container& C)
+{
+    return tqdm_for_lvalues(C);
+}
+
+template <class Container>
+auto tqdm(Container&& C)
+{
+    return tqdm_for_rvalues(std::forward<Container>(C));
 }
 
 // -------------------- int_iterator --------------------
 
-template <class IntType> class int_iterator {
+template <class IntType>
+class int_iterator
+{
 public:
-  using iterator_category = std::random_access_iterator_tag;
-  using value_type = IntType;
-  using difference_type = IntType;
-  using pointer = IntType *;
-  using reference = IntType &;
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = IntType;
+    using difference_type = IntType;
+    using pointer = IntType*;
+    using reference = IntType&;
 
-  explicit int_iterator(IntType val) : value_(val) {}
+    explicit int_iterator(IntType val) : value_(val) {}
 
-  IntType &operator*() { return value_; }
+    IntType& operator*() { return value_; }
 
-  int_iterator &operator++() {
-    ++value_;
-    return *this;
-  }
-  int_iterator &operator--() {
-    --value_;
-    return *this;
-  }
-  int_iterator &operator+=(difference_type d) {
-    value_ += d;
-    return *this;
-  }
+    int_iterator& operator++()
+    {
+        ++value_;
+        return *this;
+    }
+    int_iterator& operator--()
+    {
+        --value_;
+        return *this;
+    }
 
-  difference_type operator-(const int_iterator &other) {
-    return value_ - other.value_;
-  }
+    int_iterator& operator+=(difference_type d)
+    {
+        value_ += d;
+        return *this;
+    }
 
-  bool operator!=(const int_iterator &other) { return value_ != other.value_; }
+    difference_type operator-(const int_iterator& other) const
+    {
+        return value_ - other.value_;
+    }
+
+    bool operator!=(const int_iterator& other) const
+    {
+        return value_ != other.value_;
+    }
 
 private:
-  IntType value_;
+    IntType value_;
 };
 
 // -------------------- range --------------------
-template <class IntType> class range {
+template <class IntType>
+class range
+{
 public:
-  using iterator = int_iterator<IntType>;
-  using const_iterator = iterator;
-  using value_type = IntType;
+    using iterator = int_iterator<IntType>;
+    using const_iterator = iterator;
+    using value_type = IntType;
 
-  range(IntType first, IntType last) : first_(first), last_(last) {}
-  explicit range(IntType last) : first_(0), last_(last) {}
+    range(IntType first, IntType last) : first_(first), last_(last) {}
+    explicit range(IntType last) : first_(0), last_(last) {}
 
-  iterator begin() const { return first_; }
-  iterator end() const { return last_; }
+    iterator begin() const { return first_; }
+    iterator end() const { return last_; }
+    index size() const { return last_ - first_; }
 
 private:
-  iterator first_;
-  iterator last_;
+    iterator first_;
+    iterator last_;
 };
 
-template <class IntType> auto trange(IntType first, IntType last) {
-  return tqdm(range(first, last));
+template <class IntType>
+auto trange(IntType first, IntType last)
+{
+    return tqdm(range(first, last));
 }
 
-template <class IntType> auto trange(IntType last) { return tqdm(range(last)); }
+template <class IntType>
+auto trange(IntType last)
+{
+    return tqdm(range(last));
+}
+
 } // namespace tq
