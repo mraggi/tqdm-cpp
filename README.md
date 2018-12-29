@@ -61,7 +61,7 @@ The integer type you pass to `trange` determines the `value_type`. For example, 
 It is easy to add extra info to the display.
 
 ```c++
-    auto A = tq::tqdm(get_data_structure()); // works!
+    auto A = tq::tqdm(get_data_structure()); // works for rvalues too!
     A.set_prefix("Iterating over A: ");
     for (int a : A)
     {
@@ -75,9 +75,9 @@ Displays: ![progress bar](pbarwprefixsuffix.gif "progress bar")
 
 # Notes
 
-- By default, the progress bar is written to `std::cerr` so as to not clash with stdin redirectioning.
+- By default, the progress bar is written to `std::cerr` so as to not clash with stdout redirectioning.
     - Modify this by calling `set_ostream` member function.
 - Works with either rvalues or lvalues (with and without const). Takes ownership of rvalues (by moving).
 - You can customize bar size by calling `set_bar_size`. Default is 30.
 - By default, it only refreshes every 0.15 seconds (at most). Customize this with `set_min_update_time`
-- 
+- TODO: Implement a "data structure" that serves as a timer, so you can run your calculations for, say, an hour, and use this library.
