@@ -83,8 +83,9 @@ public:
     using difference_type = typename ForwardIter::difference_type;
     using pointer = typename ForwardIter::pointer;
     using reference = typename ForwardIter::reference;
+    using parent_t = tqdm_for_lvalues<ForwardIter>;
 
-    iter_wrapper(ForwardIter it, tqdm_for_lvalues<ForwardIter>* parent)
+    iter_wrapper(ForwardIter it, parent_t* parent)
         : current_(it), parent_(parent)
     {}
 
@@ -103,7 +104,7 @@ public:
 private:
     friend class tqdm_for_lvalues<ForwardIter>;
     ForwardIter current_;
-    tqdm_for_lvalues<ForwardIter>* parent_;
+    parent_t* parent_;
 };
 
 // -------------------- tqdm_for_lvalues --------------------
@@ -153,47 +154,40 @@ public:
         return first_;
     }
 
-    iterator end() { return last_; }
+    iterator end() const { return last_; }
 
     void update()
     {
-        if (time_since_last_clear() > min_time_per_update_ ||
-            iters_done_ == 0 || iters_left() == 0)
+        if (time_since_refresh() > min_time_per_update_ || iters_done_ == 0 ||
+            iters_left() == 0)
         {
-            refresh_.reset();
-            //             clear_line();
+            reset_refresh_timer();
             print_progress();
         }
 
         ++iters_done_;
-        suffix_.clear();
+        suffix_.str("");
     }
 
-    tqdm_for_lvalues& set_ostream(std::ostream& os)
-    {
-        os_ = &os;
-        return *this;
-    }
-
-    tqdm_for_lvalues& set_prefix(std::string s)
-    {
-        prefix_ = std::move(s);
-        return *this;
-    }
-
-    tqdm_for_lvalues& set_bar_size(int size) { bar_size_ = size; }
-    tqdm_for_lvalues& set_min_update_time(double time)
-    {
-        min_time_per_update_ = time;
-    }
+    void set_ostream(std::ostream& os) { os_ = &os; }
+    void set_prefix(std::string s) { prefix_ = std::move(s); }
+    void set_bar_size(int size) { bar_size_ = size; }
+    void set_min_update_time(double time) { min_time_per_update_ = time; }
 
     template <class T>
     tqdm_for_lvalues& operator<<(const T& t)
     {
-        std::stringstream ss;
-        ss << t;
-        suffix_ += ss.str();
+        suffix_ << t;
         return *this;
+    }
+
+    void manually_set_advancement(double to)
+    {
+        if (to > 1.)
+            to = 1.;
+        if (to < 0.)
+            to = 0.;
+        iters_done_ = std::round(to*num_iters_);
     }
 
 private:
@@ -203,7 +197,7 @@ private:
     {
         auto flags = os_->flags();
 
-        double complete = double(iters_done_)/(num_iters_ + 0.0000000000001);
+        double complete = calc_advancement();
         double t = chronometer_.peek();
         double eta = t/complete - t;
 
@@ -217,15 +211,20 @@ private:
         bar << " (" << std::setw(4) << t << "s < " << eta << "s) ";
 
         std::string sbar = bar.str();
+        std::string suffix = suffix_.str();
 
-        index out_size = sbar.size() + suffix_.size();
+        index out_size = sbar.size() + suffix.size();
         term_cols_ = std::max(term_cols_, out_size);
         index num_blank = term_cols_ - out_size;
 
-        (*os_) << std::move(sbar) << suffix_ << std::string(num_blank, ' ')
-               << std::flush;
+        (*os_) << sbar << suffix << std::string(num_blank, ' ') << std::flush;
 
         os_->flags(flags);
+    }
+
+    double calc_advancement() const
+    {
+        return iters_done_/(num_iters_ + 0.0000000000001);
     }
 
     void print_bar(std::stringstream& ss, double filled) const
@@ -235,7 +234,8 @@ private:
            << std::string(bar_size_ - num_filled, ' ') << ']';
     }
 
-    double time_since_last_clear() const { return refresh_.peek(); }
+    double time_since_refresh() const { return refresh_.peek(); }
+    void reset_refresh_timer() { refresh_.reset(); }
 
     iterator first_;
     iterator last_;
@@ -252,7 +252,7 @@ private:
     index term_cols_{1};
 
     std::string prefix_{};
-    std::string suffix_{};
+    std::stringstream suffix_{};
 };
 
 template <class Container>
@@ -282,34 +282,22 @@ public:
 
     void update() { return tqdm_.update(); }
 
-    tqdm_for_rvalues& set_ostream(std::ostream& os)
-    {
-        tqdm_.set_ostream(os);
-        return *this;
-    }
-
-    tqdm_for_rvalues& set_prefix(std::string s)
-    {
-        tqdm_.set_prefix(std::move(s));
-        return *this;
-    }
-
-    tqdm_for_rvalues& set_bar_size(int size)
-    {
-        tqdm_.set_bar_size(size);
-        return *this;
-    }
-
-    tqdm_for_rvalues& set_min_update_time(double time)
-    {
-        tqdm_.set_min_update_time(time);
-        return *this;
-    }
+    void set_ostream(std::ostream& os) { tqdm_.set_ostream(os); }
+    void set_prefix(std::string s) { tqdm_.set_prefix(std::move(s)); }
+    void set_bar_size(int size) { tqdm_.set_bar_size(size); }
+    void set_min_update_time(double time) { tqdm_.set_min_update_time(time); }
 
     template <class T>
     auto& operator<<(const T& t)
     {
         return tqdm_ << t;
+    }
+
+    void advance(index amount) { tqdm_.advance(amount); }
+
+    void manually_set_advancement(double to)
+    {
+        tqdm_.manually_set_advancement(to);
     }
 
 private:
