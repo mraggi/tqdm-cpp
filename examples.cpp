@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <numeric>
+#include <set>
 #include <unistd.h>
 #include <vector>
 
@@ -16,6 +17,15 @@ std::vector<int> get_vector(int size)
     return A;
 }
 
+std::set<int> get_set(int size)
+{
+    std::vector<int> A(size);
+    std::iota(A.begin(), A.end(), 1000);
+    //     std::generate(A.begin(), A.end(), []() {return rand(); } );
+
+    return std::set<int>(A.begin(), A.end());
+}
+
 void test_rvalue()
 {
     auto T = tq::tqdm(get_vector(5000));
@@ -30,6 +40,19 @@ void test_rvalue()
 void test_lvalue()
 {
     auto A = get_vector(5000);
+    auto T = tq::tqdm(A);
+    T.set_prefix("tqdm from lvalue ");
+    for (auto&& t : T)
+    {
+        t *= 2;
+        usleep(sleep_time);
+        T << t;
+    }
+}
+
+void test_lvalue_2()
+{
+    auto A = get_set(5000);
     auto T = tq::tqdm(A);
     T.set_prefix("tqdm from lvalue ");
     for (auto&& t : T)
@@ -67,10 +90,7 @@ void test_timer()
 {
     tq::tqdm_timer timer(2.0);
     timer.set_prefix("tqdm timer ");
-    for (auto a : timer)
-    {
-        usleep(30000);
-    }
+    for (auto a : timer) { usleep(50000); }
 }
 
 int main()
@@ -78,6 +98,8 @@ int main()
     test_timer();
     std::cout << '\n';
     test_lvalue();
+    std::cout << '\n';
+    test_lvalue_2();
     std::cout << '\n';
     test_constlvalue();
     std::cout << '\n';

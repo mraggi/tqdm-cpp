@@ -65,8 +65,9 @@ public:
 
         return elapsed_seconds(start_, now);
     }
-    
+
     [[nodiscard]] time_point_t get_start() const { return start_; }
+
 private:
     time_point_t start_;
 };
@@ -89,8 +90,10 @@ public:
 
     void update(double progress)
     {
-        if (time_since_refresh() > min_time_per_update_ || progress == 0.0 ||
-            progress == 1.0)
+        clamp(progress, 0, 1);
+
+        if (time_since_refresh() > min_time_per_update_ || progress == 0 ||
+            progress == 1)
         {
             reset_refresh_timer();
             display(progress);
@@ -115,8 +118,6 @@ public:
 private:
     void display(double progress)
     {
-        clamp(progress, 0.0, 1.0);
-
         auto flags = os_->flags();
 
         double t = chronometer_.peek();
@@ -193,7 +194,7 @@ public:
         return current_ != other;
     }
 
-    bool operator!=(const iter_wrapper<ForwardIter, Parent>& other) const
+    bool operator!=(const iter_wrapper& other) const
     {
         parent_->update(); // here and not in ++ because I need to run update
                            // before first advancement!
@@ -258,8 +259,8 @@ public:
 
     void update()
     {
-        bar_.update(calc_progress());
         ++iters_done_;
+        bar_.update(calc_progress());
     }
 
     void set_ostream(std::ostream& os) { bar_.set_ostream(os); }
@@ -276,22 +277,21 @@ public:
 
     void manually_set_progress(double to)
     {
-        if (to > 1.)
-            to = 1.;
-        if (to < 0.)
-            to = 0.;
+        clamp(to, 0, 1);
         iters_done_ = std::round(to*num_iters_);
     }
 
 private:
     double calc_progress() const
     {
-        return iters_done_/(num_iters_ + 0.0000000000001);
+        double denominator = num_iters_;
+        if (num_iters_ == 0) denominator += 1e-9;
+        return iters_done_/denominator;
     }
 
     iterator first_;
     EndIter last_;
-    index num_iters_;
+    index num_iters_{0};
     index iters_done_{0};
     progress_bar bar_;
 };
@@ -465,8 +465,9 @@ public:
     explicit timing_iterator_end_sentinel(double num_seconds)
         : num_seconds_(num_seconds)
     {}
-    
+
     [[nodiscard]] double num_seconds() const { return num_seconds_; }
+
 private:
     double num_seconds_;
 };
@@ -480,11 +481,7 @@ public:
     using pointer = double*;
     using reference = double&;
 
-    double& operator*() const
-    {
-        workaround_ = chrono_.peek();
-        return workaround_;
-    }
+    double operator*() const { return chrono_.peek(); }
 
     timing_iterator& operator++() { return *this; }
 
@@ -495,7 +492,6 @@ public:
 
 private:
     tq::Chronometer chrono_;
-    mutable double workaround_{0.0};
 };
 
 // -------------------- timer -------------------
@@ -510,9 +506,13 @@ public:
     explicit timer(double num_seconds) : num_seconds_(num_seconds) {}
 
     [[nodiscard]] static iterator begin() { return iterator(); }
-    [[nodiscard]] end_iterator end() const { return end_iterator(num_seconds_); }
-    
-    [[nodiscard]] double num_seconds() const { return num_seconds_; } 
+    [[nodiscard]] end_iterator end() const
+    {
+        return end_iterator(num_seconds_);
+    }
+
+    [[nodiscard]] double num_seconds() const { return num_seconds_; }
+
 private:
     double num_seconds_;
 };
