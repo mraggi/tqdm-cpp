@@ -11,7 +11,7 @@ std::vector<int> get_vector(int size)
 {
     std::vector<int> A(size);
     std::iota(A.begin(), A.end(), 1000);
-//     std::generate(A.begin(), A.end(), []() {return rand(); } );
+    //     std::generate(A.begin(), A.end(), []() {return rand(); } );
 
     return A;
 }

@@ -59,18 +59,20 @@ public:
         return elapsed_seconds(previous, start_);
     }
 
-    double peek() const
+    [[nodiscard]] double peek() const
     {
         auto now = std::chrono::steady_clock::now();
 
         return elapsed_seconds(start_, now);
     }
-
+    
+    [[nodiscard]] time_point_t get_start() const { return start_; }
+private:
     time_point_t start_;
 };
 
 // -------------------- progress_bar --------------------
-void clamp(double& x, double a, double b)
+inline void clamp(double& x, double a, double b)
 {
     if (x < a) x = a;
     if (x > b) x = b;
@@ -87,7 +89,8 @@ public:
 
     void update(double progress)
     {
-        if (time_since_refresh() > min_time_per_update_ || progress==0.0 || progress==1.0)
+        if (time_since_refresh() > min_time_per_update_ || progress == 0.0 ||
+            progress == 1.0)
         {
             reset_refresh_timer();
             display(progress);
@@ -106,14 +109,14 @@ public:
         suffix_ << t;
         return *this;
     }
-    
+
     double elapsed_time() const { return chronometer_.peek(); }
 
 private:
     void display(double progress)
     {
-        clamp(progress,0.0,1.0);
-        
+        clamp(progress, 0.0, 1.0);
+
         auto flags = os_->flags();
 
         double t = chronometer_.peek();
@@ -163,7 +166,6 @@ private:
     std::stringstream suffix_{};
 };
 
-
 // -------------------- iter_wrapper --------------------
 
 template <class ForwardIter, class Parent>
@@ -176,8 +178,7 @@ public:
     using pointer = typename ForwardIter::pointer;
     using reference = typename ForwardIter::reference;
 
-    iter_wrapper(ForwardIter it, Parent* parent)
-        : current_(it), parent_(parent)
+    iter_wrapper(ForwardIter it, Parent* parent) : current_(it), parent_(parent)
     {}
 
     auto operator*() { return *current_; }
@@ -187,17 +188,19 @@ public:
     template <class Other>
     bool operator!=(const Other& other) const
     {
-        parent_->update(); // here and not in ++ because I need to run update before first advancement!
+        parent_->update(); // here and not in ++ because I need to run update
+                           // before first advancement!
         return current_ != other;
     }
-    
+
     bool operator!=(const iter_wrapper<ForwardIter, Parent>& other) const
     {
-        parent_->update(); // here and not in ++ because I need to run update before first advancement!
+        parent_->update(); // here and not in ++ because I need to run update
+                           // before first advancement!
         return current_ != other.current_;
     }
 
-    const ForwardIter& get() const { return current_; }
+    [[nodiscard]] const ForwardIter& get() const { return current_; }
 
 private:
     friend Parent;
@@ -207,20 +210,18 @@ private:
 
 // -------------------- tqdm_for_lvalues --------------------
 
-template <class ForwardIter, class EndIter=ForwardIter>
+template <class ForwardIter, class EndIter = ForwardIter>
 class tqdm_for_lvalues
 {
 public:
-    using this_t = tqdm_for_lvalues<ForwardIter,EndIter>;
+    using this_t = tqdm_for_lvalues<ForwardIter, EndIter>;
     using iterator = iter_wrapper<ForwardIter, this_t>;
     using value_type = typename ForwardIter::value_type;
     using size_type = index;
     using difference_type = index;
 
     tqdm_for_lvalues(ForwardIter begin, EndIter end)
-        : first_(begin, this)
-        , last_(end)
-        , num_iters_(std::distance(begin, end))
+        : first_(begin, this), last_(end), num_iters_(std::distance(begin, end))
     {}
 
     tqdm_for_lvalues(ForwardIter begin, EndIter end, index total)
@@ -241,6 +242,7 @@ public:
     tqdm_for_lvalues(tqdm_for_lvalues&&) = delete;
     tqdm_for_lvalues& operator=(tqdm_for_lvalues&&) = delete;
     tqdm_for_lvalues& operator=(const tqdm_for_lvalues&) = delete;
+    ~tqdm_for_lvalues() = default;
 
     template <class Container>
     tqdm_for_lvalues(Container&&) = delete; // prevent misuse!
@@ -274,8 +276,10 @@ public:
 
     void manually_set_progress(double to)
     {
-        if (to > 1.) to = 1.;
-        if (to < 0.) to = 0.;
+        if (to > 1.)
+            to = 1.;
+        if (to < 0.)
+            to = 0.;
         iters_done_ = std::round(to*num_iters_);
     }
 
@@ -293,11 +297,11 @@ private:
 };
 
 template <class Container>
-tqdm_for_lvalues(Container&)->tqdm_for_lvalues<typename Container::iterator>;
+tqdm_for_lvalues(Container&) -> tqdm_for_lvalues<typename Container::iterator>;
 
 template <class Container>
 tqdm_for_lvalues(const Container&)
-  ->tqdm_for_lvalues<typename Container::const_iterator>;
+  -> tqdm_for_lvalues<typename Container::const_iterator>;
 
 // -------------------- tqdm_for_rvalues --------------------
 
@@ -332,10 +336,7 @@ public:
 
     void advance(index amount) { tqdm_.advance(amount); }
 
-    void manually_set_progress(double to)
-    {
-        tqdm_.manually_set_progress(to);
-    }
+    void manually_set_progress(double to) { tqdm_.manually_set_progress(to); }
 
 private:
     Container C_;
@@ -343,7 +344,7 @@ private:
 };
 
 template <class Container>
-tqdm_for_rvalues(Container &&)->tqdm_for_rvalues<Container>;
+tqdm_for_rvalues(Container &&) -> tqdm_for_rvalues<Container>;
 
 // -------------------- tqdm --------------------
 template <class ForwardIter>
@@ -435,9 +436,9 @@ public:
     range(IntType first, IntType last) : first_(first), last_(last) {}
     explicit range(IntType last) : first_(0), last_(last) {}
 
-    iterator begin() const { return first_; }
-    iterator end() const { return last_; }
-    index size() const { return last_ - first_; }
+    [[nodiscard]] iterator begin() const { return first_; }
+    [[nodiscard]] iterator end() const { return last_; }
+    [[nodiscard]] index size() const { return last_ - first_; }
 
 private:
     iterator first_;
@@ -458,11 +459,15 @@ auto trange(IntType last)
 
 // -------------------- timing_iterator --------------------
 
-struct timing_iterator_end_sentinel
+class timing_iterator_end_sentinel
 {
 public:
-    explicit timing_iterator_end_sentinel(double num_seconds) : num_seconds_(num_seconds) {}
+    explicit timing_iterator_end_sentinel(double num_seconds)
+        : num_seconds_(num_seconds)
+    {}
     
+    [[nodiscard]] double num_seconds() const { return num_seconds_; }
+private:
     double num_seconds_;
 };
 
@@ -478,22 +483,19 @@ public:
     double& operator*() const
     {
         workaround_ = chrono_.peek();
-        return workaround_; 
+        return workaround_;
     }
 
-    timing_iterator& operator++()
-    {
-        return *this;
-    }
-    
+    timing_iterator& operator++() { return *this; }
+
     bool operator!=(const timing_iterator_end_sentinel& other) const
     {
-        return chrono_.peek() < other.num_seconds_;
+        return chrono_.peek() < other.num_seconds();
     }
 
 private:
     tq::Chronometer chrono_;
-    mutable double workaround_;
+    mutable double workaround_{0.0};
 };
 
 // -------------------- timer -------------------
@@ -505,33 +507,32 @@ public:
     using const_iterator = iterator;
     using value_type = double;
 
-    explicit timer(double num_seconds) : num_seconds(num_seconds)
-    {
-    }
+    explicit timer(double num_seconds) : num_seconds_(num_seconds) {}
 
-    iterator begin() const { return iterator(); }
-    end_iterator end() const { return end_iterator(num_seconds); }
+    [[nodiscard]] static iterator begin() { return iterator(); }
+    [[nodiscard]] end_iterator end() const { return end_iterator(num_seconds_); }
     
-    double num_seconds;
+    [[nodiscard]] double num_seconds() const { return num_seconds_; } 
+private:
+    double num_seconds_;
 };
 
 class tqdm_timer
 {
 public:
-    using iterator = iter_wrapper<timing_iterator,tqdm_timer>;
+    using iterator = iter_wrapper<timing_iterator, tqdm_timer>;
     using end_iterator = timer::end_iterator;
     using value_type = typename timing_iterator::value_type;
     using size_type = index;
     using difference_type = index;
 
-    explicit tqdm_timer(double num_seconds)
-        : num_seconds_(num_seconds)
-    {}
+    explicit tqdm_timer(double num_seconds) : num_seconds_(num_seconds) {}
 
     tqdm_timer(const tqdm_timer&) = delete;
     tqdm_timer(tqdm_timer&&) = delete;
     tqdm_timer& operator=(tqdm_timer&&) = delete;
     tqdm_timer& operator=(const tqdm_timer&) = delete;
+    ~tqdm_timer() = default;
 
     template <class Container>
     tqdm_timer(Container&&) = delete; // prevent misuse!
@@ -547,7 +548,7 @@ public:
     void update()
     {
         double t = bar_.elapsed_time();
-        
+
         bar_.update(t/num_seconds_);
     }
 
@@ -563,15 +564,11 @@ public:
         return *this;
     }
 
-
 private:
     double num_seconds_;
     progress_bar bar_;
 };
 
-auto tqdm(timer t)
-{
-    return tqdm_timer(t.num_seconds);
-}
+inline auto tqdm(timer t) { return tqdm_timer(t.num_seconds()); }
 
 } // namespace tq
