@@ -80,4 +80,3 @@ Displays: ![progress bar](pbarwprefixsuffix.gif "progress bar")
 - Works with either rvalues or lvalues (with and without const). Takes ownership of rvalues (by moving).
 - You can customize bar size by calling `set_bar_size`. Default is 30.
 - By default, it only refreshes every 0.15 seconds (at most). Customize this with `set_min_update_time`
-- TODO: Implement a "data structure" that serves as a timer, so you can run your calculations for, say, an hour, and use this library.
