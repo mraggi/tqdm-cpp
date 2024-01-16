@@ -1,4 +1,4 @@
-# Easy progress bars!
+# Easy progress bars! [![Conan Center](https://img.shields.io/conan/v/tqdm-cpp)](https://conan.io/center/recipes/tqdm-cpp)
 
 Create CLI progress bars easily!
 
